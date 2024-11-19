@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplicación de Análisis Facial</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7fc;
+            color: #333;
+        }
+
+        header {
+            background-color: #3b4a7f;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+
+        h1 {
+            margin: 0;
+        }
+
+        form {
+            background-color: #ffffff;
+            padding: 20px;
+            margin: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        label {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        input[type="file"] {
+            margin: 10px 0;
+        }
+
+        button {
+            background-color: #3b4a7f;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #2a3b66;
+        }
+
+        #results {
+            margin: 20px;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        #resultImages {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .image-container {
+            text-align: center;
+            max-width: 300px;
+        }
+
+        .image-container img {
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        #loading {
+            text-align: center;
+            font-size: 1.5rem;
+            padding: 20px;
+        }
+
+        #error {
+            color: red;
+            text-align: center;
+            font-size: 1.2rem;
+            margin: 20px;
+        }
+
+        .previous-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .previous-images img {
+            max-width: 150px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: transform 0.3s ease;
+        }
+
+        .previous-images img:hover {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Aplicación de Análisis Facial</h1>
+    </header>
+
+    <!-- Subir nuevas imágenes -->
+    <form id="uploadForm">
+        <label>Seleccione imágenes:
+            <input type="file" name="files" accept=".jpg,.jpeg,.png" multiple />
+        </label>
+        <button type="submit">Analizar imágenes</button>
+    </form>
+
+    <!-- Resultados del análisis -->
+    <div id="results" style="display: none;">
+        <h2>Resultados del análisis</h2>
+        <div id="resultImages"></div>
+    </div>
+
+    <!-- Indicador de carga -->
+    <div id="loading" style="display: none;">
+        <p>Cargando...</p>
+    </div>
+
+    <!-- Visualización de errores -->
+    <div id="error" style="display: none;"></div>
+
+    <!-- Imágenes cargadas previamente -->
+    {% if images %}
+    <h2>Imágenes cargadas previamente</h2>
+    <div class="previous-images">
+        {% for image in images %}
+        <div class="image-container">
+            <img src="{{ url_for('static', filename='uploads/' + image) }}" 
+                 alt="{{ image }}" 
+                 onclick="analyzeExisting('{{ image }}')" 
+                 title="Analizar {{ image }}">
+            <p>{{ image }}</p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <script>
+        function showLoading() {
+            $('#loading').show();
+            $('#error').hide();
+            $('#results').hide();
+        }
+
+        function hideLoading() {
+            $('#loading').hide();
+        }
+
+        $(document).ready(function() {
+            $('#uploadForm').on('submit', function(e) {
+                e.preventDefault();
+                var formData = new FormData(this);
+                showLoading();
+                
+                $.ajax({
+                    url: '/analyze',
+                    type: 'POST',
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+                    success: function(response) {
+                        hideLoading();
+                        $('#results').show();
+                        $('#resultImages').empty();  // Limpiar resultados previos
+
+                        // Mostrar imágenes procesadas
+                        $.each(response.images, function(filename, images) {
+                            var imageHtml = `
+                                <h3>${filename}</h3>
+                                <div class="image-container">
+                                    <p>Imagen Original:</p>
+                                    <img src="data:image/png;base64,${images.original}" alt="Imagen Original">
+                                </div>
+                                <div class="image-container">
+                                    <p>Imagen Invertida:</p>
+                                    <img src="data:image/png;base64,${images.flipped}" alt="Imagen Invertida">
+                                </div>
+                                <div class="image-container">
+                                    <p>Imagen Aumentada:</p>
+                                    <img src="data:image/png;base64,${images.brightened}" alt="Imagen Aumentada">
+                                </div>
+                                <div class="image-container">
+                                    <p>Imagen Rotada (180 grados):</p>
+                                    <img src="data:image/png;base64,${images.rotated}" alt="Imagen Rotada">
+                                </div>
+                            `;
+                            $('#resultImages').append(imageHtml);
+                        });
+                    },
+                    error: function(xhr) {
+                        hideLoading();
+                        $('#error').show().text(xhr.responseJSON?.error || 'Ocurrió un error');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
